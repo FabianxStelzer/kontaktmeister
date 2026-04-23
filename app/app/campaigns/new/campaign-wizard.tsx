@@ -36,7 +36,21 @@ export function CampaignWizard({ contacts }: { contacts: ContactOpt[] }) {
   const [step, setStep] = useState(0);
   const [error, setError] = useState<string | null>(null);
 
-  const [form, setForm] = useState({
+  const [form, setForm] = useState<{
+    name: string;
+    description: string;
+    heygenTemplateId: string;
+    heygenAvatarId: string;
+    heygenVoiceId: string;
+    scriptTemplate: string;
+    landingpageHeadline: string;
+    landingpageTextTpl: string;
+    emailSubjectTpl: string;
+    emailBodyTpl: string;
+    bookingUrl: string;
+    ctaLabel: string;
+    sendMode: SendMode;
+  }>({
     name: "",
     description: "",
     heygenTemplateId: "",
