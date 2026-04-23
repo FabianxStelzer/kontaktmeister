@@ -75,6 +75,15 @@ docker exec km_app cat /app/.next/server/middleware-manifest.json 2>/dev/null | 
 echo "--- Env in km_app (ausgewaehlt) ---"
 docker exec km_app sh -c 'printenv | grep -E "^(NODE_ENV|NEXTAUTH_URL|AUTH_URL|AUTH_TRUST_HOST|APP_URL|PUBLIC_URL)="'
 
+echo "--- tatsaechliche app/layout.tsx IM Container ---"
+docker exec km_app cat /app/app/layout.tsx 2>/dev/null | head -30 || echo "(kein layout.tsx)"
+echo "--- tatsaechliche app/ping/page.tsx IM Container ---"
+docker exec km_app cat /app/app/ping/page.tsx 2>/dev/null || echo "(kein ping page)"
+echo "--- .next/server/app Inhalt ---"
+docker exec km_app sh -c 'ls -la /app/.next/server/app/ 2>/dev/null | head -30' || true
+echo "--- routes-manifest redirects ---"
+docker exec km_app sh -c 'cat /app/.next/routes-manifest.json 2>/dev/null' | python3 -c "import sys,json;d=json.load(sys.stdin);print('redirects:',json.dumps(d.get('redirects',[]),indent=2));print('rewrites:',json.dumps(d.get('rewrites',[]),indent=2));print('staticRoutes sample:',[r.get('page') for r in d.get('staticRoutes',[])[:10]]);print('dynamicRoutes sample:',[r.get('page') for r in d.get('dynamicRoutes',[])[:10]])" 2>/dev/null || echo "(parse failed)"
+
 echo "== 9/9 Test =="
 echo "---- /api/healthz (intern) ----"
 docker exec km_caddy wget -qO- http://app:3000/api/healthz || true
@@ -98,7 +107,7 @@ curl -sI https://app.kontaktmeister.de/login | head -15
 echo "---- /ping (public ueber Caddy, alle Header) ----"
 curl -sI https://app.kontaktmeister.de/ping | head -15
 echo
-echo "---- Letzte km_app Logs ----"
-docker logs km_app --tail 40
+echo "---- km_app Logs nach Testrequests (wichtig: suchen nach [ROOT_LAYOUT] und [PING_PAGE]) ----"
+docker logs km_app --tail 80
 echo
 echo "Fertig."

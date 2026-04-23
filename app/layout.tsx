@@ -15,6 +15,7 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  console.log("[ROOT_LAYOUT] rendered @", new Date().toISOString());
   return (
     <html lang="de" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans antialiased">
