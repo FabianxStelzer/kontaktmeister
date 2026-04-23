@@ -1,0 +1,103 @@
+name: Build & Deploy to Hetzner
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  build-and-push:
+    name: Build & Push Docker Image
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.meta.outputs.tags }}
+      image_ref: ${{ steps.img.outputs.ref }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Compute lowercase image name
+        id: img
+        run: |
+          NAME="${GITHUB_REPOSITORY,,}"
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "ref=ghcr.io/${NAME}:latest" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract image metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ steps.img.outputs.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,format=short
+
+      - name: Build & push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: deploy/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  deploy:
+    name: Deploy to Hetzner
+    needs: build-and-push
+    runs-on: ubuntu-latest
+    steps:
+      - name: SSH deploy
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.HETZNER_HOST }}
+          username: ${{ secrets.HETZNER_USER }}
+          key: ${{ secrets.HETZNER_SSH_KEY }}
+          port: ${{ secrets.HETZNER_SSH_PORT || 22 }}
+          envs: GHCR_USER,GHCR_TOKEN,IMAGE_REF
+          script_stop: true
+          script: |
+            set -euo pipefail
+            cd /opt/kontaktmeister
+
+            echo "== 1/5 Code aktualisieren (compose-Files, Caddyfile, update.sh) =="
+            git fetch origin
+            git reset --hard origin/main
+
+            echo "== 2/5 Bei GHCR einloggen =="
+            echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+            echo "== 3/5 Neues Image ziehen =="
+            export APP_IMAGE="$IMAGE_REF"
+            docker pull "$APP_IMAGE"
+
+            echo "== 4/5 Container neu starten =="
+            APP_IMAGE="$IMAGE_REF" bash deploy/update.sh
+
+            echo "== 5/5 Status =="
+            docker ps --format 'table {{.Names}}\t{{.Status}}'
+        env:
+          GHCR_USER: ${{ github.actor }}
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          IMAGE_REF: ${{ needs.build-and-push.outputs.image_ref }}
