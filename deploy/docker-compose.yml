@@ -1,25 +1,32 @@
 services:
   app:
-    image: ghcr.io/${GITHUB_OWNER:-owner}/kontaktmeister:${APP_IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: kontaktmeister-app:latest
     container_name: km_app
     restart: unless-stopped
     env_file:
-      - .env.production
+      - ../.env.production
     depends_on:
       - postgres
       - redis
     networks: [web, internal]
 
   worker:
-    image: ghcr.io/${GITHUB_OWNER:-owner}/kontaktmeister:${APP_IMAGE_TAG:-latest}
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: kontaktmeister-app:latest
     container_name: km_worker
     restart: unless-stopped
     command: ["npm", "run", "worker"]
     env_file:
-      - .env.production
+      - ../.env.production
     depends_on:
       - postgres
       - redis
+      - app
     networks: [internal]
 
   postgres:
@@ -50,7 +57,7 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
     depends_on:

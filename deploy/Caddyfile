@@ -2,8 +2,3 @@ app.kontaktmeister.de {
   encode zstd gzip
   reverse_proxy app:3000
 }
-
-p.kontaktmeister.de {
-  encode zstd gzip
-  reverse_proxy app:3000
-}
