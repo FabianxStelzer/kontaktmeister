@@ -3,11 +3,9 @@ export const revalidate = 0;
 
 export default function PingPage() {
   return (
-    <html lang="de">
-      <body>
-        <h1>pong</h1>
-        <p>Time: {new Date().toISOString()}</p>
-      </body>
-    </html>
+    <div style={{ padding: "2rem", fontFamily: "system-ui" }}>
+      <h1>pong</h1>
+      <p>Time: {new Date().toISOString()}</p>
+    </div>
   );
 }
