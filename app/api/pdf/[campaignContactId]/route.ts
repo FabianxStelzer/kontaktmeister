@@ -32,7 +32,9 @@ export async function GET(
     .replace(/\s+/g, "-")
     .toLowerCase();
 
-  return new NextResponse(pdf, {
+  const body = new Uint8Array(pdf);
+
+  return new NextResponse(body, {
     status: 200,
     headers: {
       "Content-Type": "application/pdf",
