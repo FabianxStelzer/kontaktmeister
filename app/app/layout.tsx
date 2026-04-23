@@ -6,12 +6,9 @@ import { Topbar } from "@/components/app/topbar";
 import { listMyWorkspaces, ACTIVE_WORKSPACE_COOKIE } from "@/lib/workspace";
 
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  console.log("[APP_LAYOUT_CALLED] @", new Date().toISOString());
-
-  // WICHTIG: kein redirect() hier - das wuerde fuer ALLE routes triggern,
-  // wenn Next.js das Layout globaler als erwartet anwendet.
-  // Stattdessen: wenn keine session, einfach Kinder durchreichen;
-  // die einzelnen /app/*/page.tsx rufen requireWorkspace() selbst auf.
+  // WICHTIG: kein redirect() hier - die einzelnen /app/*/page.tsx
+  // rufen requireWorkspace() selbst auf. Ohne session/workspace
+  // reichen wir die Children einfach durch.
   const session = await auth();
   if (!session?.user?.id || !session.user.email) {
     return <>{children}</>;

@@ -1,7 +1,12 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/components/session-provider";
+import { Toaster } from "@/components/ui/toaster";
 
 export const metadata: Metadata = {
+  metadataBase: new URL(
+    process.env.NEXT_PUBLIC_APP_URL ?? "https://app.kontaktmeister.de",
+  ),
   title: {
     default: "Kontaktmeister",
     template: "%s | Kontaktmeister",
@@ -15,11 +20,13 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
-  console.log("[ROOT_LAYOUT] rendered @", new Date().toISOString());
   return (
     <html lang="de" suppressHydrationWarning>
       <body className="min-h-screen bg-background font-sans antialiased">
-        {children}
+        <AuthProvider>
+          {children}
+          <Toaster />
+        </AuthProvider>
       </body>
     </html>
   );
