@@ -1,0 +1,68 @@
+services:
+  app:
+    image: ghcr.io/${GITHUB_OWNER:-owner}/kontaktmeister:${APP_IMAGE_TAG:-latest}
+    container_name: km_app
+    restart: unless-stopped
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+      - redis
+    networks: [web, internal]
+
+  worker:
+    image: ghcr.io/${GITHUB_OWNER:-owner}/kontaktmeister:${APP_IMAGE_TAG:-latest}
+    container_name: km_worker
+    restart: unless-stopped
+    command: ["npm", "run", "worker"]
+    env_file:
+      - .env.production
+    depends_on:
+      - postgres
+      - redis
+    networks: [internal]
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: km_postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: kontaktmeister
+      POSTGRES_PASSWORD: kontaktmeister
+      POSTGRES_DB: kontaktmeister
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks: [internal]
+
+  redis:
+    image: redis:7-alpine
+    container_name: km_redis
+    restart: unless-stopped
+    volumes:
+      - redis_data:/data
+    networks: [internal]
+
+  caddy:
+    image: caddy:2-alpine
+    container_name: km_caddy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - app
+    networks: [web, internal]
+
+volumes:
+  postgres_data:
+  redis_data:
+  caddy_data:
+  caddy_config:
+
+networks:
+  web:
+  internal:

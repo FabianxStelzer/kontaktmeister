@@ -1,0 +1,390 @@
+// Kontaktmeister Prisma Schema
+// PostgreSQL 16
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// =============================================================================
+// Tenancy & Auth
+// =============================================================================
+
+model Workspace {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  plan      Plan     @default(FREE)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Branding / Einstellungen (optional pro Workspace ueberschreibbar)
+  smtpHost     String?
+  smtpPort     Int?
+  smtpSecure   Boolean?
+  smtpUser     String?
+  smtpPassEnc  String?
+  smtpFromName  String?
+  smtpFromEmail String?
+
+  members       WorkspaceMembership[]
+  contacts      Contact[]
+  companies     Company[]
+  campaigns     Campaign[]
+  apiKeys       ApiKey[]
+  unsubscribes  Unsubscribe[]
+  invitations   Invitation[]
+}
+
+enum Plan {
+  FREE
+  STARTER
+  PRO
+  ENTERPRISE
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  name          String?
+  passwordHash  String?
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  accounts     Account[]
+  sessions     Session[]
+  memberships  WorkspaceMembership[]
+}
+
+model WorkspaceMembership {
+  id          String         @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole  @default(MEMBER)
+  createdAt   DateTime       @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+enum WorkspaceRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+model Invitation {
+  id          String   @id @default(cuid())
+  workspaceId String
+  email       String
+  role        WorkspaceRole @default(MEMBER)
+  token       String   @unique
+  invitedById String?
+  expiresAt   DateTime
+  acceptedAt  DateTime?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+// Auth.js-Tabellen (Credential-Login, optional spaeter Email-Link)
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model SuperAdmin {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime @default(now())
+  lastLoginAt  DateTime?
+}
+
+// =============================================================================
+// Firmen, Kontakte
+// =============================================================================
+
+model Company {
+  id          String   @id @default(cuid())
+  workspaceId String
+  name        String
+  domain      String?
+  industry    String?
+  website     String?
+  country     String?
+  city        String?
+  size        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  contacts  Contact[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, name])
+}
+
+model Contact {
+  id           String   @id @default(cuid())
+  workspaceId  String
+  companyId    String?
+  firstName    String
+  lastName     String
+  email        String?
+  phone        String?
+  position     String?
+  gender       Gender?
+  salutation   String?
+  linkedinUrl  String?
+  customFields Json?
+  optedOut     Boolean  @default(false)
+  optedOutAt   DateTime?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  company          Company?          @relation(fields: [companyId], references: [id], onDelete: SetNull)
+  campaignContacts CampaignContact[]
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId])
+  @@index([companyId])
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+// =============================================================================
+// Kampagnen
+// =============================================================================
+
+model Campaign {
+  id                   String         @id @default(cuid())
+  workspaceId          String
+  name                 String
+  status               CampaignStatus @default(DRAFT)
+  description          String?
+  heygenTemplateId     String?
+  heygenAvatarId       String?
+  heygenVoiceId        String?
+  scriptTemplate       String         @db.Text
+  landingpageTextTpl   String         @db.Text
+  landingpageHeadline  String?
+  emailSubjectTpl      String
+  emailBodyTpl         String         @db.Text
+  bookingUrl           String?
+  ctaLabel             String?        @default("Jetzt Termin buchen")
+  sendMode             SendMode       @default(EMAIL)
+  createdById          String?
+  scheduledAt          DateTime?
+  startedAt            DateTime?
+  completedAt          DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  workspace        Workspace         @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  campaignContacts CampaignContact[]
+
+  @@index([workspaceId])
+  @@index([workspaceId, status])
+}
+
+enum CampaignStatus {
+  DRAFT
+  SCHEDULED
+  RUNNING
+  PAUSED
+  DONE
+  FAILED
+}
+
+enum SendMode {
+  EMAIL
+  PDF
+  BOTH
+}
+
+model CampaignContact {
+  id                 String                 @id @default(cuid())
+  campaignId         String
+  contactId          String
+  slug               String                 @unique
+  unsubscribeToken   String                 @unique
+  personalizedScript String                 @db.Text
+  landingpageText    String                 @db.Text
+  emailSubject       String
+  emailBody          String                 @db.Text
+  heygenVideoId      String?
+  videoStatus        VideoStatus            @default(PENDING)
+  videoUrl           String?
+  videoThumbnail     String?
+  videoError         String?
+  sendStatus         SendStatus             @default(PENDING)
+  sentAt             DateTime?
+  createdAt          DateTime               @default(now())
+  updatedAt          DateTime               @updatedAt
+
+  campaign       Campaign         @relation(fields: [campaignId], references: [id], onDelete: Cascade)
+  contact        Contact          @relation(fields: [contactId], references: [id], onDelete: Cascade)
+  emailSends     EmailSend[]
+  trackingEvents TrackingEvent[]
+
+  @@unique([campaignId, contactId])
+  @@index([campaignId])
+  @@index([contactId])
+  @@index([videoStatus])
+  @@index([sendStatus])
+}
+
+enum VideoStatus {
+  PENDING
+  QUEUED
+  PROCESSING
+  READY
+  FAILED
+  SKIPPED
+}
+
+enum SendStatus {
+  PENDING
+  QUEUED
+  SENT
+  FAILED
+  BOUNCED
+  SKIPPED_OPTOUT
+}
+
+model EmailSend {
+  id                String    @id @default(cuid())
+  campaignContactId String
+  messageId         String?
+  subject           String
+  fromEmail         String
+  toEmail           String
+  status            SendStatus
+  error             String?
+  sentAt            DateTime?
+  createdAt         DateTime  @default(now())
+
+  campaignContact CampaignContact @relation(fields: [campaignContactId], references: [id], onDelete: Cascade)
+
+  @@index([campaignContactId])
+}
+
+// =============================================================================
+// Tracking
+// =============================================================================
+
+model TrackingEvent {
+  id                String        @id @default(cuid())
+  campaignContactId String
+  type              EventType
+  url               String?
+  ip                String?
+  userAgent         String?
+  referer           String?
+  meta              Json?
+  createdAt         DateTime      @default(now())
+
+  campaignContact CampaignContact @relation(fields: [campaignContactId], references: [id], onDelete: Cascade)
+
+  @@index([campaignContactId])
+  @@index([type])
+  @@index([createdAt])
+}
+
+enum EventType {
+  EMAIL_OPEN
+  PAGE_VIEW
+  LINK_CLICK
+  CTA_CLICK
+  PDF_SCAN
+  UNSUBSCRIBE
+}
+
+// =============================================================================
+// API-Keys (verschluesselt)
+// =============================================================================
+
+model ApiKey {
+  id           String    @id @default(cuid())
+  workspaceId  String
+  service      ApiService
+  label        String?
+  encryptedKey String    @db.Text
+  lastUsedAt   DateTime?
+  createdAt    DateTime  @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, service])
+  @@index([workspaceId])
+}
+
+enum ApiService {
+  HEYGEN
+}
+
+// =============================================================================
+// Unsubscribe
+// =============================================================================
+
+model Unsubscribe {
+  id          String   @id @default(cuid())
+  workspaceId String
+  email       String
+  reason      String?
+  source      String?
+  createdAt   DateTime @default(now())
+
+  workspace Workspace @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, email])
+  @@index([workspaceId])
+}
