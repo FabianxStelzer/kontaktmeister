@@ -3,7 +3,6 @@
 // Produktion: als eigener Container/Prozess (siehe deploy/docker-compose.yml)
 
 import { Worker } from "bullmq";
-import "dotenv/config";
 import { redisConnection, QUEUE_NAMES } from "../lib/queue";
 import { processVideoJob } from "./video";
 import { processVideoPollJob } from "./video-poll";
